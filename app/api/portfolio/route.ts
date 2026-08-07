@@ -1,27 +1,39 @@
 import { NextResponse } from 'next/server';
 
-// 1. Enter your EVM wallet address to auto-fetch your live Base AERO balance
-const WALLET_ADDRESS = '0xDbc9e41D5E083884f2Cb172bb3a17aB09a528101';
+// --------------------------------------------------------------------------
+// 🔒 DEMO MODE TOGGLE
+// Set to 'true' when sharing with friends (serves 100% fake numbers & mock data)
+// Set to 'false' when viewing privately (uses your real wallet & quantities)
+// --------------------------------------------------------------------------
+const DEMO_MODE = true;
 
-// 2. Token quantities (123k vlCVX, RSUP, YB, and fallback AERO)
-const TOKEN_QUANTITIES = {
-  cvx: 142000,   // Exact 123k vlCVX position
-  aero: 220000,   // Fallback AERO quantity if wallet balance check fails
-  rsup: 166000,  // RSUP token count
-  yb: 300000      // YB token count
+// REAL DATA CONFIG (Only used when DEMO_MODE = false)
+const WALLET_ADDRESS = '0xDbc9e41D5E083884f2Cb172bb3a17aB09a528101';
+const REAL_TOKEN_QUANTITIES = {
+  cvx: 142000,
+  aero: 220000,
+  rsup: 166000,
+  yb: 300000
 };
 
-// 3. Exact GeckoTerminal Liquidity Pool Addresses
+// MOCK DEMO DATA (Used when DEMO_MODE = true)
+const DEMO_TOKEN_QUANTITIES = {
+  cvx: 10000,   // Sample 10k vlCVX
+  aero: 15000,  // Sample 15k AERO
+  rsup: 25000,  // Sample 25k RSUP
+  yb: 20000     // Sample 20k YB
+};
+
+// Exact GeckoTerminal Liquidity Pool Addresses
 const POOLS = {
   cvx: { chain: 'ethereum', geckoChain: 'eth', address: '0xb576491f1e6e5e62f1d8f26062ee822b40b0e0d4', baseApr: 0.153 },
   aero: { chain: 'base', geckoChain: 'base', address: '0x6cdcb1c4a4d1c3c6d054b27ac5b77e89eafb971d', baseApr: 0.154 },
-  rsup: { chain: 'ethereum', geckoChain: 'eth', address: '0x419905009e4656fdc02418c7df35b1e61ed5f726', baseApr: 0.112 },
+  rsup: { chain: 'ethereum', geckoChain: 'eth', address: '0xee351f12eae8c2b8b9d1b9bfd3c5dd565234578d', baseApr: 0.112 },
   yb: { chain: 'ethereum', geckoChain: 'eth', address: '0x6f582cf72ea9084a109be3d04eb58477b869a38e', baseApr: 0.097 }
 };
 
-// Helper 1: Fetch live AERO wallet balance from Base RPC
 async function getBaseAeroBalance(wallet: string, fallbackQty: number) {
-  if (!wallet || wallet === '0xYOUR_WALLET_ADDRESS_HERE') return fallbackQty;
+  if (DEMO_MODE || !wallet || wallet === '0xYOUR_WALLET_ADDRESS_HERE') return fallbackQty;
   try {
     const cleanAddr = wallet.toLowerCase().replace('0x', '').padStart(64, '0');
     const data = `0x70a08231${cleanAddr}`;
@@ -50,7 +62,6 @@ async function getBaseAeroBalance(wallet: string, fallbackQty: number) {
   }
 }
 
-// Helper 2: Fetch current spot price from pool
 async function getPoolPrice(chain: string, geckoChain: string, poolAddress: string, fallbackPrice: number) {
   const poolLower = poolAddress.toLowerCase();
   try {
@@ -79,7 +90,6 @@ async function getPoolPrice(chain: string, geckoChain: string, poolAddress: stri
   return fallbackPrice;
 }
 
-// Helper 3: Volatile Historical Timeline Generator for 6–12 months
 async function getVolatileTimeline(
   geckoChain: string, 
   poolAddress: string, 
@@ -121,7 +131,6 @@ async function getVolatileTimeline(
     console.error(`OHLC fetch skipped for ${poolLower}, using dynamic curve:`, err);
   }
 
-  // Fallback: Generate a realistic 24-point (6-12 month) price wave culminating at currentPrice
   const totalPoints = 24;
   const now = new Date();
   const timeline = [];
@@ -151,32 +160,31 @@ async function getVolatileTimeline(
 }
 
 export async function GET() {
+  const activeQuantities = DEMO_MODE ? DEMO_TOKEN_QUANTITIES : REAL_TOKEN_QUANTITIES;
+
   const [cvxPrice, aeroPrice, rsupPrice, ybPrice, liveAeroQty] = await Promise.all([
     getPoolPrice(POOLS.cvx.chain, POOLS.cvx.geckoChain, POOLS.cvx.address, 2.42),
     getPoolPrice(POOLS.aero.chain, POOLS.aero.geckoChain, POOLS.aero.address, 0.96),
     getPoolPrice(POOLS.rsup.chain, POOLS.rsup.geckoChain, POOLS.rsup.address, 0.10),
     getPoolPrice(POOLS.yb.chain, POOLS.yb.geckoChain, POOLS.yb.address, 0.16),
-    getBaseAeroBalance(WALLET_ADDRESS, TOKEN_QUANTITIES.aero)
+    getBaseAeroBalance(WALLET_ADDRESS, activeQuantities.aero)
   ]);
 
-  // Current Principal Values
-  const cvxVal = Math.round(TOKEN_QUANTITIES.cvx * cvxPrice);
+  const cvxVal = Math.round(activeQuantities.cvx * cvxPrice);
   const aeroVal = Math.round(liveAeroQty * aeroPrice);
-  const rsupVal = Math.round(TOKEN_QUANTITIES.rsup * rsupPrice);
-  const ybVal = Math.round(TOKEN_QUANTITIES.yb * ybPrice);
+  const rsupVal = Math.round(activeQuantities.rsup * rsupPrice);
+  const ybVal = Math.round(activeQuantities.yb * ybPrice);
 
-  // Cash Flows
   const cvxMonthly = Math.round(cvxVal * (POOLS.cvx.baseApr / 12));
   const aeroMonthly = Math.round(aeroVal * (POOLS.aero.baseApr / 12));
   const rsupMonthly = Math.round(rsupVal * (POOLS.rsup.baseApr / 12));
   const ybMonthly = Math.round(ybVal * (POOLS.yb.baseApr / 12));
 
-  // Generate 6-12 month timelines for all 4 positions
   const [cvxHistory, aeroHistory, rsupHistory, ybHistory] = await Promise.all([
-    getVolatileTimeline(POOLS.cvx.geckoChain, POOLS.cvx.address, cvxPrice, TOKEN_QUANTITIES.cvx, POOLS.cvx.baseApr, 14),
+    getVolatileTimeline(POOLS.cvx.geckoChain, POOLS.cvx.address, cvxPrice, activeQuantities.cvx, POOLS.cvx.baseApr, 14),
     getVolatileTimeline(POOLS.aero.geckoChain, POOLS.aero.address, aeroPrice, liveAeroQty, POOLS.aero.baseApr, 7),
-    getVolatileTimeline(POOLS.rsup.geckoChain, POOLS.rsup.address, rsupPrice, TOKEN_QUANTITIES.rsup, POOLS.rsup.baseApr, 14),
-    getVolatileTimeline(POOLS.yb.geckoChain, POOLS.yb.address, ybPrice, TOKEN_QUANTITIES.yb, POOLS.yb.baseApr, 7)
+    getVolatileTimeline(POOLS.rsup.geckoChain, POOLS.rsup.address, rsupPrice, activeQuantities.rsup, POOLS.rsup.baseApr, 14),
+    getVolatileTimeline(POOLS.yb.geckoChain, POOLS.yb.address, ybPrice, activeQuantities.yb, POOLS.yb.baseApr, 7)
   ]);
 
   const totalCapitalUSD = cvxVal + aeroVal + rsupVal + ybVal;
