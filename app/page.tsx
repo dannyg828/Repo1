@@ -17,13 +17,7 @@ export default function Dashboard() {
       .then((json) => setData(json));
   }, []);
 
-  if (!data) {
-    return (
-      
-        Loading Sovereign Holding Dashboard...
-      
-    );
-  }
+  if (!data) return Loading Sovereign Holding Dashboard...;
 
   const selectedAsset = activeTab !== 'overview' ? data.assets[activeTab] : null;
 
