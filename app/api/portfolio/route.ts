@@ -1,28 +1,63 @@
 import { NextResponse } from 'next/server';
 
-// 1. Set your fixed token quantities here (and your wallet address for auto-reading)
+// 1. Enter your EVM wallet address to auto-fetch your live Base AERO balance
+const WALLET_ADDRESS = '0xDbc9e41D5E083884f2Cb172bb3a17aB09a528101';
+
+// 2. Fixed token quantities (updates dynamically for AERO if wallet address is set)
 const TOKEN_QUANTITIES = {
-  cvx: 142000,   // Exact vlCVX count
-  aero: 220000,   // Aerodrome quantity (or set wallet address below)
-  rsup: 166000,  // Resupply token count
-  yb: 300000      // Yield Basis token count
+  cvx: 142000,   // Exact 123k vlCVX position
+  aero: 220000,   // Fallback AERO count if wallet fetch fails
+  rsup: 166000,  // RSUP token count
+  yb: 300000      // YB token count
 };
 
 // Contract Addresses for GeckoTerminal
 const CONTRACTS = {
   cvx: { network: 'eth', address: '0x4e3fbd56cd56c3e7221478a47e9994d53926f135' },
   aero: { network: 'base', address: '0x940181a94a35a256b274e232856ab82d5536e0d2' },
-  rsup: { network: 'eth', address: '0x0000000000000000000000000000000000000000' }, // Update with RSUP token address
-  yb: { network: 'eth', address: '0x0000000000000000000000000000000000000000' }     // Update with YB token address
+  rsup: { network: 'eth', address: '0x0000000000000000000000000000000000000000' },
+  yb: { network: 'eth', address: '0x0000000000000000000000000000000000000000' }
 };
 
-// Helper function to fetch live price from GeckoTerminal
-async function getGeckoTerminalPrice(network: string, address: string, fallbackPrice: number): Promise {
+// Helper: Fetch live AERO token balance from Base RPC via ERC-20 balanceOf()
+async function getBaseAeroBalance(wallet: string, fallbackQty: number): Promise {
+  if (!wallet || wallet === '0xYOUR_WALLET_ADDRESS_HERE') return fallbackQty;
+  try {
+    const cleanAddr = wallet.toLowerCase().replace('0x', '').padStart(64, '0');
+    const data = `0x70a08231${cleanAddr}`; // balanceOf(address) selector
+
+    const res = await fetch('https://mainnet.base.org', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'eth_call',
+        params: [{ to: CONTRACTS.aero.address, data }, 'latest']
+      }),
+      next: { revalidate: 60 } // Cache balance for 60 seconds
+    });
+
+    const json = await res.json();
+    if (json?.result && json.result !== '0x') {
+      const rawVal = BigInt(json.result);
+      // Convert 18 decimals to human readable quantity
+      return Number(rawVal / BigInt(10 ** 14)) / 10000;
+    }
+    return fallbackQty;
+  } catch (err) {
+    console.error('Error fetching Base AERO balance:', err);
+    return fallbackQty;
+  }
+}
+
+// Helper: Fetch live token price from GeckoTerminal API
+async function getGeckoPrice(network: string, address: string, fallbackPrice: number): Promise {
   if (address === '0x0000000000000000000000000000000000000000') return fallbackPrice;
   try {
     const res = await fetch(
       `https://api.geckoterminal.com/api/v2/simple/networks/${network}/token_price/${address}`,
-      { next: { revalidate: 60 } } // Cache for 60s
+      { next: { revalidate: 60 } }
     );
     const json = await res.json();
     const priceStr = json?.data?.attributes?.token_prices?.[address.toLowerCase()];
@@ -34,21 +69,21 @@ async function getGeckoTerminalPrice(network: string, address: string, fallbackP
 }
 
 export async function GET() {
-  // Fetch live prices in parallel with fallback defaults
-  const [cvxPrice, aeroPrice, rsupPrice, ybPrice] = await Promise.all([
-    getGeckoTerminalPrice(CONTRACTS.cvx.network, CONTRACTS.cvx.address, 2.42),
-    getGeckoTerminalPrice(CONTRACTS.aero.network, CONTRACTS.aero.address, 0.96),
-    getGeckoTerminalPrice(CONTRACTS.rsup.network, CONTRACTS.rsup.address, 0.10),
-    getGeckoTerminalPrice(CONTRACTS.yb.network, CONTRACTS.yb.address, 0.16)
+  // Fetch live prices and on-chain AERO wallet balance concurrently
+  const [cvxPrice, aeroPrice, rsupPrice, ybPrice, liveAeroQty] = await Promise.all([
+    getGeckoPrice(CONTRACTS.cvx.network, CONTRACTS.cvx.address, 2.42),
+    getGeckoPrice(CONTRACTS.aero.network, CONTRACTS.aero.address, 0.96),
+    getGeckoPrice(CONTRACTS.rsup.network, CONTRACTS.rsup.address, 0.10),
+    getGeckoPrice(CONTRACTS.yb.network, CONTRACTS.yb.address, 0.16),
+    getBaseAeroBalance(WALLET_ADDRESS, TOKEN_QUANTITIES.aero)
   ]);
 
-  // Calculate live principal values
+  // Dynamic calculations
   const cvxVal = Math.round(TOKEN_QUANTITIES.cvx * cvxPrice);
-  const aeroVal = Math.round(TOKEN_QUANTITIES.aero * aeroPrice);
+  const aeroVal = Math.round(liveAeroQty * aeroPrice);
   const rsupVal = Math.round(TOKEN_QUANTITIES.rsup * rsupPrice);
   const ybVal = Math.round(TOKEN_QUANTITIES.yb * ybPrice);
 
-  // Monthly yield estimates
   const cvxMonthly = Math.round(cvxVal * (0.153 / 12));
   const aeroMonthly = Math.round(aeroVal * (0.154 / 12));
   const rsupMonthly = Math.round(rsupVal * (0.112 / 12));
@@ -58,7 +93,7 @@ export async function GET() {
   const totalMonthlyYield = cvxMonthly + aeroMonthly + rsupMonthly + ybMonthly;
   const annualizedCashFlowUSD = totalMonthlyYield * 12;
 
-  const portfolioData = {
+  return NextResponse.json({
     summary: {
       totalCapitalUSD,
       annualizedCashFlowUSD,
@@ -126,7 +161,5 @@ export async function GET() {
         ]
       }
     }
-  };
-
-  return NextResponse.json(portfolioData);
+  });
 }
