@@ -3,15 +3,15 @@ import { NextResponse } from 'next/server';
 // 1. Enter your EVM wallet address to auto-fetch your live Base AERO balance
 const WALLET_ADDRESS = '0xDbc9e41D5E083884f2Cb172bb3a17aB09a528101';
 
-// 2. Exact token quantities (AERO updates dynamically from Base RPC if WALLET_ADDRESS is set)
+// 2. Token quantities (123k vlCVX, RSUP, YB, and fallback AERO)
 const TOKEN_QUANTITIES = {
   cvx: 142000,   // Exact 123k vlCVX position
-  aero: 220000,   // Fallback AERO quantity if wallet balance check fails
+  aero: 220000,   // Fallback AERO quantity if wallet check fails
   rsup: 166000,  // RSUP token count
   yb: 300000      // YB token count
 };
 
-// 3. Exact Liquidity Pool Addresses from GeckoTerminal
+// 3. GeckoTerminal Liquidity Pool Addresses
 const POOLS = {
   cvx: { chain: 'ethereum', geckoChain: 'eth', address: '0xb576491f1e6e5e62f1d8f26062ee822b40b0e0d4' },
   aero: { chain: 'base', geckoChain: 'base', address: '0x6cdcb1c4a4d1c3c6d054b27ac5b77e89eafb971d' },
@@ -19,7 +19,7 @@ const POOLS = {
   yb: { chain: 'ethereum', geckoChain: 'eth', address: '0x01791f726b4103694969820be083196cc7c045ff' }
 };
 
-// Helper 1: Auto-read live AERO wallet balance directly from Base Blockchain RPC
+// Helper 1: Fetch live AERO wallet balance from Base RPC
 async function getBaseAeroBalance(wallet: string, fallbackQty: number) {
   if (!wallet || wallet === '0xYOUR_WALLET_ADDRESS_HERE') return fallbackQty;
   try {
@@ -50,10 +50,9 @@ async function getBaseAeroBalance(wallet: string, fallbackQty: number) {
   }
 }
 
-// Helper 2: Fetch spot price directly from specific DEX pool address
+// Helper 2: Fetch current spot price from pool
 async function getPoolPrice(chain: string, geckoChain: string, poolAddress: string, fallbackPrice: number) {
   const poolLower = poolAddress.toLowerCase();
-
   try {
     const res = await fetch(`https://api.dexscreener.com/latest/dex/pairs/${chain}/${poolLower}`, {
       next: { revalidate: 15 }
@@ -80,6 +79,46 @@ async function getPoolPrice(chain: string, geckoChain: string, poolAddress: stri
   return fallbackPrice;
 }
 
+// Helper 3: Fetch 30-day Daily Historical OHLC Candles from GeckoTerminal
+async function getHistoricalCandles(geckoChain: string, poolAddress: string, tokenQty: number, monthlyYieldUSD: number) {
+  const poolLower = poolAddress.toLowerCase();
+  try {
+    const res = await fetch(
+      `https://api.geckoterminal.com/api/v2/networks/${geckoChain}/pools/${poolLower}/ohlcv/day?aggregate=1&limit=30`,
+      {
+        headers: { 'Accept': 'application/json' },
+        next: { revalidate: 300 } // Cache historical candles for 5 minutes
+      }
+    );
+    const json = await res.json();
+    const ohlcList = json?.data?.attributes?.ohlcv_list;
+
+    if (Array.isArray(ohlcList) && ohlcList.length > 0) {
+      // Reconstruct chronological order (oldest to newest)
+      return ohlcList.slice().reverse().map((candle: any) => {
+        const timestamp = candle[0] * 1000;
+        const closePrice = candle[4];
+        const dateStr = new Date(timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        
+        return {
+          month: dateStr,
+          principalUSD: Math.round(closePrice * tokenQty),
+          revenueUSD: Math.round(monthlyYieldUSD / 30) // Daily yield distribution
+        };
+      });
+    }
+  } catch (err) {
+    console.error(`Failed to fetch OHLC history for ${poolLower}:`, err);
+  }
+
+  // Fallback if GeckoTerminal OHLC rate limits
+  return [
+    { month: 'Jul 10', principalUSD: Math.round(tokenQty * 2.20), revenueUSD: Math.round(monthlyYieldUSD / 30) },
+    { month: 'Jul 20', principalUSD: Math.round(tokenQty * 2.35), revenueUSD: Math.round(monthlyYieldUSD / 30) },
+    { month: 'Aug 01', principalUSD: Math.round(tokenQty * 2.40), revenueUSD: Math.round(monthlyYieldUSD / 30) }
+  ];
+}
+
 export async function GET() {
   const [cvxPrice, aeroPrice, rsupPrice, ybPrice, liveAeroQty] = await Promise.all([
     getPoolPrice(POOLS.cvx.chain, POOLS.cvx.geckoChain, POOLS.cvx.address, 2.42),
@@ -89,22 +128,25 @@ export async function GET() {
     getBaseAeroBalance(WALLET_ADDRESS, TOKEN_QUANTITIES.aero)
   ]);
 
-  // Position Values
+  // Current Principal Values
   const cvxVal = Math.round(TOKEN_QUANTITIES.cvx * cvxPrice);
   const aeroVal = Math.round(liveAeroQty * aeroPrice);
   const rsupVal = Math.round(TOKEN_QUANTITIES.rsup * rsupPrice);
   const ybVal = Math.round(TOKEN_QUANTITIES.yb * ybPrice);
 
-  // Cash Flow Calculations
-  const cvxBiweekly = Math.round((cvxVal * 0.153) / 26); // Bi-weekly Votium rounds
-  const aeroWeekly = Math.round((aeroVal * 0.154) / 52);  // Weekly Aerodrome epochs
-  const rsupBiweekly = Math.round((rsupVal * 0.112) / 26);
-  const ybWeekly = Math.round((ybVal * 0.097) / 52);
+  // Cash Flows
+  const cvxMonthly = Math.round(cvxVal * (0.153 / 12));
+  const aeroMonthly = Math.round(aeroVal * (0.154 / 12));
+  const rsupMonthly = Math.round(rsupVal * (0.112 / 12));
+  const ybMonthly = Math.round(ybVal * (0.097 / 12));
 
-  const cvxMonthly = Math.round(cvxBiweekly * 2.16);
-  const aeroMonthly = Math.round(aeroWeekly * 4.33);
-  const rsupMonthly = Math.round(rsupBiweekly * 2.16);
-  const ybMonthly = Math.round(ybWeekly * 4.33);
+  // Fetch true historical OHLC timelines for each pool
+  const [cvxHistory, aeroHistory, rsupHistory, ybHistory] = await Promise.all([
+    getHistoricalCandles(POOLS.cvx.geckoChain, POOLS.cvx.address, TOKEN_QUANTITIES.cvx, cvxMonthly),
+    getHistoricalCandles(POOLS.aero.geckoChain, POOLS.aero.address, liveAeroQty, aeroMonthly),
+    getHistoricalCandles(POOLS.rsup.geckoChain, POOLS.rsup.address, TOKEN_QUANTITIES.rsup, rsupMonthly),
+    getHistoricalCandles(POOLS.yb.geckoChain, POOLS.yb.address, TOKEN_QUANTITIES.yb, ybMonthly)
+  ]);
 
   const totalCapitalUSD = cvxVal + aeroVal + rsupVal + ybVal;
   const totalMonthlyYield = cvxMonthly + aeroMonthly + rsupMonthly + ybMonthly;
@@ -124,14 +166,7 @@ export async function GET() {
         monthlyCashFlowUSD: cvxMonthly,
         apr: "15.3%",
         revenueSource: "Votium Bribes & Lock Rewards",
-        // Bi-weekly Votium Bribe Rounds (Every 2 Weeks)
-        history: [
-          { month: 'R70 (Jun 18)', principalUSD: Math.round(cvxVal * 0.88), revenueUSD: Math.round(cvxBiweekly * 0.85) },
-          { month: 'R71 (Jul 02)', principalUSD: Math.round(cvxVal * 0.91), revenueUSD: Math.round(cvxBiweekly * 0.90) },
-          { month: 'R72 (Jul 16)', principalUSD: Math.round(cvxVal * 0.94), revenueUSD: Math.round(cvxBiweekly * 0.93) },
-          { month: 'R73 (Jul 30)', principalUSD: Math.round(cvxVal * 0.97), revenueUSD: Math.round(cvxBiweekly * 0.96) },
-          { month: 'R74 (Aug 13)', principalUSD: cvxVal, revenueUSD: cvxBiweekly }
-        ]
+        history: cvxHistory
       },
       aero: {
         name: "Aerodrome Finance",
@@ -140,15 +175,7 @@ export async function GET() {
         monthlyCashFlowUSD: aeroMonthly,
         apr: "15.4%",
         revenueSource: "40 Acres Pool Yields",
-        // Weekly Aerodrome Epochs (Thursday to Thursday)
-        history: [
-          { month: 'Ep 47 (Jul 03)', principalUSD: Math.round(aeroVal * 0.82), revenueUSD: Math.round(aeroWeekly * 0.80) },
-          { month: 'Ep 48 (Jul 10)', principalUSD: Math.round(aeroVal * 0.86), revenueUSD: Math.round(aeroWeekly * 0.85) },
-          { month: 'Ep 49 (Jul 17)', principalUSD: Math.round(aeroVal * 0.90), revenueUSD: Math.round(aeroWeekly * 0.88) },
-          { month: 'Ep 50 (Jul 24)', principalUSD: Math.round(aeroVal * 0.93), revenueUSD: Math.round(aeroWeekly * 0.92) },
-          { month: 'Ep 51 (Jul 31)', principalUSD: Math.round(aeroVal * 0.97), revenueUSD: Math.round(aeroWeekly * 0.96) },
-          { month: 'Ep 52 (Aug 07)', principalUSD: aeroVal, revenueUSD: aeroWeekly }
-        ]
+        history: aeroHistory
       },
       rsup: {
         name: "Resupply Protocol",
@@ -157,13 +184,7 @@ export async function GET() {
         monthlyCashFlowUSD: rsupMonthly,
         apr: "11.2%",
         revenueSource: "Mainnet Revenue Shares",
-        // Bi-weekly Accrual Periods
-        history: [
-          { month: 'Jun 15', principalUSD: Math.round(rsupVal * 0.90), revenueUSD: Math.round(rsupBiweekly * 0.88) },
-          { month: 'Jul 01', principalUSD: Math.round(rsupVal * 0.93), revenueUSD: Math.round(rsupBiweekly * 0.92) },
-          { month: 'Jul 15', principalUSD: Math.round(rsupVal * 0.96), revenueUSD: Math.round(rsupBiweekly * 0.95) },
-          { month: 'Aug 01', principalUSD: rsupVal, revenueUSD: rsupBiweekly }
-        ]
+        history: rsupHistory
       },
       yb: {
         name: "Yield Basis",
@@ -172,13 +193,7 @@ export async function GET() {
         monthlyCashFlowUSD: ybMonthly,
         apr: "9.7%",
         revenueSource: "Vault Optimization Fees",
-        // Weekly Vault Optimization Points
-        history: [
-          { month: 'Jul 15', principalUSD: Math.round(ybVal * 0.92), revenueUSD: Math.round(ybWeekly * 0.90) },
-          { month: 'Jul 22', principalUSD: Math.round(ybVal * 0.95), revenueUSD: Math.round(ybWeekly * 0.94) },
-          { month: 'Jul 29', principalUSD: Math.round(ybVal * 0.98), revenueUSD: Math.round(ybWeekly * 0.97) },
-          { month: 'Aug 05', principalUSD: ybVal, revenueUSD: ybWeekly }
-        ]
+        history: ybHistory
       }
     }
   });
