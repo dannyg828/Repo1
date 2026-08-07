@@ -35,7 +35,6 @@ export default function Dashboard() {
     tooltipText: isDark ? '#f8fafc' : '#0f172a'
   };
 
-  // Helper function to format dollar amounts or mask in Privacy Mode
   const fmt = (val: number | string) => {
     if (isPrivacy) return '$••••••';
     if (typeof val === 'number') return `$${val.toLocaleString()}`;
@@ -52,7 +51,7 @@ export default function Dashboard() {
 
   const selectedAsset = activeTab !== 'overview' ? data.assets[activeTab] : null;
 
-  // Header Bar with Privacy and Theme Controls
+  // Header Bar with Controls
   const header = React.createElement(
     'header',
     { className: `flex flex-col md:flex-row md:items-center justify-between gap-4 border-b ${c.border} pb-6` },
@@ -65,8 +64,6 @@ export default function Dashboard() {
     React.createElement(
       'div',
       { className: 'flex flex-wrap items-center gap-3 text-xs' },
-      
-      // Privacy Toggle Button
       React.createElement(
         'button',
         {
@@ -79,8 +76,6 @@ export default function Dashboard() {
         },
         isPrivacy ? '🔒 Privacy On' : '👁️ Privacy Off'
       ),
-
-      // Theme Toggle Button
       React.createElement(
         'button',
         {
@@ -89,8 +84,6 @@ export default function Dashboard() {
         },
         isDark ? '☀️ Light' : '🌙 Dark'
       ),
-
-      // Wallets List
       WALLETS.map((w: any, idx: number) =>
         React.createElement(
           'div',
@@ -124,7 +117,6 @@ export default function Dashboard() {
     )
   );
 
-  // Main Content Views
   let content = null;
   if (activeTab === 'overview') {
     content = React.createElement(
@@ -214,8 +206,8 @@ export default function Dashboard() {
         React.createElement(
           'div',
           { className: 'flex items-center justify-between' },
-          React.createElement('h3', { className: `text-xs font-semibold ${c.textMuted} uppercase tracking-wider` }, '1. 30-Day Historical Position Value (USD Volatility)'),
-          React.createElement('span', { className: 'text-xs text-blue-500 font-mono' }, 'Live OHLC Feed')
+          React.createElement('h3', { className: `text-xs font-semibold ${c.textMuted} uppercase tracking-wider` }, '1. Historical Position Value (USD Volatility)'),
+          React.createElement('span', { className: 'text-xs text-blue-500 font-mono' }, '6-12 Month Timeline')
         ),
         React.createElement(
           'div',
@@ -228,7 +220,12 @@ export default function Dashboard() {
               { data: selectedAsset.history },
               React.createElement(CartesianGrid as any, { strokeDasharray: '3 3', stroke: c.grid }),
               React.createElement(XAxis as any, { dataKey: 'month', stroke: c.axis, fontSize: 11 }),
-              React.createElement(YAxis as any, { stroke: c.axis, fontSize: 11, domain: ['auto', 'auto'], tickFormatter: (val: any) => isPrivacy ? '•••' : `$${(val / 1000).toFixed(0)}k` }),
+              React.createElement(YAxis as any, { 
+                stroke: c.axis, 
+                fontSize: 11, 
+                domain: [(min: number) => Math.floor(min * 0.92), (max: number) => Math.ceil(max * 1.08)],
+                tickFormatter: (val: any) => isPrivacy ? '•••' : `$${val >= 1000 ? (val / 1000).toFixed(0) + 'k' : val}` 
+              }),
               React.createElement(Tooltip as any, { contentStyle: { backgroundColor: c.tooltipBg, borderColor: c.tooltipBorder, borderRadius: '0.5rem', color: c.tooltipText }, formatter: (value: any) => [isPrivacy ? '$••••••' : `$${Number(value).toLocaleString()}`, 'Position Value'] }),
               React.createElement(Area as any, { type: 'monotone', dataKey: 'principalUSD', stroke: '#3b82f6', fill: '#3b82f6', fillOpacity: 0.25, strokeWidth: 2 })
             )
@@ -243,7 +240,7 @@ export default function Dashboard() {
         React.createElement(
           'div',
           { className: 'flex items-center justify-between' },
-          React.createElement('h3', { className: `text-xs font-semibold ${c.textMuted} uppercase tracking-wider` }, '2. Estimated Daily Yield / Revenue Stream (USD)'),
+          React.createElement('h3', { className: `text-xs font-semibold ${c.textMuted} uppercase tracking-wider` }, '2. Estimated Yield / Revenue Stream (USD)'),
           React.createElement('span', { className: 'text-xs text-emerald-500 font-mono' }, 'Bribes & Yields')
         ),
         React.createElement(
@@ -257,8 +254,13 @@ export default function Dashboard() {
               { data: selectedAsset.history },
               React.createElement(CartesianGrid as any, { strokeDasharray: '3 3', stroke: c.grid }),
               React.createElement(XAxis as any, { dataKey: 'month', stroke: c.axis, fontSize: 11 }),
-              React.createElement(YAxis as any, { stroke: c.axis, fontSize: 11, domain: ['auto', 'auto'], tickFormatter: (val: any) => isPrivacy ? '•••' : `$${val}` }),
-              React.createElement(Tooltip as any, { contentStyle: { backgroundColor: c.tooltipBg, borderColor: c.tooltipBorder, borderRadius: '0.5rem', color: c.tooltipText }, formatter: (value: any) => [isPrivacy ? '$••••••' : `$${Number(value).toLocaleString()}`, 'Daily Yield'] }),
+              React.createElement(YAxis as any, { 
+                stroke: c.axis, 
+                fontSize: 11, 
+                domain: [(min: number) => Math.floor(min * 0.85), (max: number) => Math.ceil(max * 1.15)],
+                tickFormatter: (val: any) => isPrivacy ? '•••' : `$${val}` 
+              }),
+              React.createElement(Tooltip as any, { contentStyle: { backgroundColor: c.tooltipBg, borderColor: c.tooltipBorder, borderRadius: '0.5rem', color: c.tooltipText }, formatter: (value: any) => [isPrivacy ? '$••••••' : `$${Number(value).toLocaleString()}`, 'Yield'] }),
               React.createElement(Area as any, { type: 'monotone', dataKey: 'revenueUSD', stroke: '#10b981', fill: '#10b981', fillOpacity: 0.25, strokeWidth: 2 })
             )
           )
