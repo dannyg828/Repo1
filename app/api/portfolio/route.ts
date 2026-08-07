@@ -2,26 +2,26 @@ import { NextResponse } from 'next/server';
 
 // --------------------------------------------------------------------------
 // 🔒 DEMO MODE TOGGLE
-// Set to 'true' when sharing with friends (serves 100% fake numbers & mock data)
-// Set to 'false' when viewing privately (uses your real wallet & quantities)
+// Set to 'false' to load your REAL portfolio quantities & live Base RPC balance
+// Set to 'true' if you ever want to switch back to mock numbers
 // --------------------------------------------------------------------------
-const DEMO_MODE = true;
+const DEMO_MODE = false;
 
-// REAL DATA CONFIG (Only used when DEMO_MODE = false)
+// REAL PORTFOLIO CONFIG
 const WALLET_ADDRESS = '0xDbc9e41D5E083884f2Cb172bb3a17aB09a528101';
 const REAL_TOKEN_QUANTITIES = {
-  cvx: 142000,
-  aero: 220000,
-  rsup: 166000,
-  yb: 300000
+  cvx: 142000,   // Exact 123k vlCVX position
+  aero: 220000,   // Fallback count if Base RPC wallet fetch fails
+  rsup: 166000,  // RSUP token count
+  yb: 300000      // YB token count
 };
 
-// MOCK DEMO DATA (Used when DEMO_MODE = true)
+// MOCK DEMO DATA (Ignored when DEMO_MODE = false)
 const DEMO_TOKEN_QUANTITIES = {
-  cvx: 10000,   // Sample 10k vlCVX
-  aero: 15000,  // Sample 15k AERO
-  rsup: 25000,  // Sample 25k RSUP
-  yb: 20000     // Sample 20k YB
+  cvx: 10000,
+  aero: 15000,
+  rsup: 25000,
+  yb: 20000
 };
 
 // Exact GeckoTerminal Liquidity Pool Addresses
@@ -32,6 +32,7 @@ const POOLS = {
   yb: { chain: 'ethereum', geckoChain: 'eth', address: '0x6f582cf72ea9084a109be3d04eb58477b869a38e', baseApr: 0.097 }
 };
 
+// Helper 1: Fetch live AERO wallet balance from Base RPC
 async function getBaseAeroBalance(wallet: string, fallbackQty: number) {
   if (DEMO_MODE || !wallet || wallet === '0xYOUR_WALLET_ADDRESS_HERE') return fallbackQty;
   try {
@@ -62,6 +63,7 @@ async function getBaseAeroBalance(wallet: string, fallbackQty: number) {
   }
 }
 
+// Helper 2: Fetch spot price directly from DEX pool
 async function getPoolPrice(chain: string, geckoChain: string, poolAddress: string, fallbackPrice: number) {
   const poolLower = poolAddress.toLowerCase();
   try {
@@ -90,6 +92,7 @@ async function getPoolPrice(chain: string, geckoChain: string, poolAddress: stri
   return fallbackPrice;
 }
 
+// Helper 3: Volatile Historical Timeline Generator for 6–12 months
 async function getVolatileTimeline(
   geckoChain: string, 
   poolAddress: string, 
