@@ -165,16 +165,16 @@ export default function Dashboard() {
           'div',
           { className: 'h-60 w-full' },
           React.createElement(
-            ResponsiveContainer,
+            ResponsiveContainer as any,
             { width: '100%', height: '100%' },
             React.createElement(
-              AreaChart,
+              AreaChart as any,
               { data: selectedAsset.history },
-              React.createElement(CartesianGrid, { strokeDasharray: '3 3', stroke: '#1e293b' }),
-              React.createElement(XAxis, { dataKey: 'month', stroke: '#64748b', fontSize: 11 }),
-              React.createElement(YAxis, { stroke: '#64748b', fontSize: 11, tickFormatter: (val: any) => `$${(val / 1000).toFixed(0)}k` }),
-              React.createElement(Tooltip, { contentStyle: { backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '0.5rem', color: '#f8fafc' }, formatter: (value: any) => [`$${Number(value).toLocaleString()}`, 'Principal Value'] }),
-              React.createElement(Area, { type: 'monotone', dataKey: 'principalUSD', stroke: '#3b82f6', fill: '#3b82f6', fillOpacity: 0.2, strokeWidth: 2 })
+              React.createElement(CartesianGrid as any, { strokeDasharray: '3 3', stroke: '#1e293b' }),
+              React.createElement(XAxis as any, { dataKey: 'month', stroke: '#64748b', fontSize: 11 }),
+              React.createElement(YAxis as any, { stroke: '#64748b', fontSize: 11, tickFormatter: (val: any) => `$${(val / 1000).toFixed(0)}k` }),
+              React.createElement(Tooltip as any, { contentStyle: { backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '0.5rem', color: '#f8fafc' }, formatter: (value: any) => [`$${Number(value).toLocaleString()}`, 'Principal Value'] }),
+              React.createElement(Area as any, { type: 'monotone', dataKey: 'principalUSD', stroke: '#3b82f6', fill: '#3b82f6', fillOpacity: 0.2, strokeWidth: 2 })
             )
           )
         )
@@ -192,16 +192,16 @@ export default function Dashboard() {
           'div',
           { className: 'h-60 w-full' },
           React.createElement(
-            ResponsiveContainer,
+            ResponsiveContainer as any,
             { width: '100%', height: '100%' },
             React.createElement(
-              AreaChart,
+              AreaChart as any,
               { data: selectedAsset.history },
-              React.createElement(CartesianGrid, { strokeDasharray: '3 3', stroke: '#1e293b' }),
-              React.createElement(XAxis, { dataKey: 'month', stroke: '#64748b', fontSize: 11 }),
-              React.createElement(YAxis, { stroke: '#64748b', fontSize: 11, tickFormatter: (val: any) => `$${val}` }),
-              React.createElement(Tooltip, { contentStyle: { backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '0.5rem', color: '#f8fafc' }, formatter: (value: any) => [`$${Number(value).toLocaleString()}`, 'Monthly Revenue'] }),
-              React.createElement(Area, { type: 'monotone', dataKey: 'revenueUSD', stroke: '#10b981', fill: '#10b981', fillOpacity: 0.2, strokeWidth: 2 })
+              React.createElement(CartesianGrid as any, { strokeDasharray: '3 3', stroke: '#1e293b' }),
+              React.createElement(XAxis as any, { dataKey: 'month', stroke: '#64748b', fontSize: 11 }),
+              React.createElement(YAxis as any, { stroke: '#64748b', fontSize: 11, tickFormatter: (val: any) => `$${val}` }),
+              React.createElement(Tooltip as any, { contentStyle: { backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '0.5rem', color: '#f8fafc' }, formatter: (value: any) => [`$${Number(value).toLocaleString()}`, 'Monthly Revenue'] }),
+              React.createElement(Area as any, { type: 'monotone', dataKey: 'revenueUSD', stroke: '#10b981', fill: '#10b981', fillOpacity: 0.2, strokeWidth: 2 })
             )
           )
         )
