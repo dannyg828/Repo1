@@ -1,7 +1,7 @@
 import React from 'react';
 
 export const metadata = {
-  title: 'Sovereign Capital Holding',
+  title: 'AeroLlama Holdings',
   description: 'Multi-Wallet Portfolio Dashboard',
 };
 
