@@ -20,7 +20,7 @@ const CONTRACTS = {
 };
 
 // Helper: Fetch live AERO token balance from Base RPC via ERC-20 balanceOf()
-async function getBaseAeroBalance(wallet: string, fallbackQty: number): Promise {
+async function getBaseAeroBalance(wallet: string, fallbackQty: number) {
   if (!wallet || wallet === '0xYOUR_WALLET_ADDRESS_HERE') return fallbackQty;
   try {
     const cleanAddr = wallet.toLowerCase().replace('0x', '').padStart(64, '0');
@@ -52,7 +52,7 @@ async function getBaseAeroBalance(wallet: string, fallbackQty: number): Promise 
 }
 
 // Helper: Fetch live token price from GeckoTerminal API
-async function getGeckoPrice(network: string, address: string, fallbackPrice: number): Promise {
+async function getGeckoPrice(network: string, address: string, fallbackPrice: number) {
   if (address === '0x0000000000000000000000000000000000000000') return fallbackPrice;
   try {
     const res = await fetch(
