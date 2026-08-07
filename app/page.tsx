@@ -9,6 +9,8 @@ import { WALLETS } from '@/lib/constants';
 export default function Dashboard() {
   const [activeTab, setActiveTab] = useState<'overview' | 'cvx' | 'aero' | 'rsup' | 'yb'>('overview');
   const [data, setData] = useState(null);
+  const [isPrivacy, setIsPrivacy] = useState(false);
+  const [theme, setTheme] = useState<'dark' | 'light'>('dark');
 
   useEffect(() => {
     fetch('/api/portfolio')
@@ -16,34 +18,84 @@ export default function Dashboard() {
       .then((json) => setData(json));
   }, []);
 
+  const isDark = theme === 'dark';
+
+  // Theme Styling Palette
+  const c = {
+    bg: isDark ? 'bg-slate-950 text-slate-100' : 'bg-slate-50 text-slate-900',
+    card: isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-sm',
+    subCard: isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-100 border-slate-200',
+    border: isDark ? 'border-slate-800' : 'border-slate-200',
+    textMuted: isDark ? 'text-slate-400' : 'text-slate-500',
+    textMain: isDark ? 'text-slate-50' : 'text-slate-900',
+    grid: isDark ? '#1e293b' : '#e2e8f0',
+    axis: isDark ? '#64748b' : '#94a3b8',
+    tooltipBg: isDark ? '#0f172a' : '#ffffff',
+    tooltipBorder: isDark ? '#334155' : '#cbd5e1',
+    tooltipText: isDark ? '#f8fafc' : '#0f172a'
+  };
+
+  // Helper function to format dollar amounts or mask in Privacy Mode
+  const fmt = (val: number | string) => {
+    if (isPrivacy) return '$••••••';
+    if (typeof val === 'number') return `$${val.toLocaleString()}`;
+    return val;
+  };
+
   if (!data) {
     return React.createElement(
       'div',
-      { className: 'min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center p-6' },
-      React.createElement('p', { className: 'text-slate-400 text-sm animate-pulse' }, 'Loading AeroLlama Holdings Dashboard...')
+      { className: `min-h-screen ${c.bg} flex items-center justify-center p-6` },
+      React.createElement('p', { className: `${c.textMuted} text-sm animate-pulse` }, 'Loading AeroLlama Holdings Dashboard...')
     );
   }
 
   const selectedAsset = activeTab !== 'overview' ? data.assets[activeTab] : null;
 
-  // Header Bar
+  // Header Bar with Privacy and Theme Controls
   const header = React.createElement(
     'header',
-    { className: 'flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-800 pb-6' },
+    { className: `flex flex-col md:flex-row md:items-center justify-between gap-4 border-b ${c.border} pb-6` },
     React.createElement(
       'div',
       null,
-      React.createElement('h1', { className: 'text-2xl font-bold tracking-tight text-slate-50' }, 'AeroLlama Holdings'),
-      React.createElement('p', { className: 'text-xs text-slate-400 mt-1' }, 'Multi-Wallet Infrastructure • 2 Connected Vaults')
+      React.createElement('h1', { className: `text-2xl font-bold tracking-tight ${c.textMain}` }, 'AeroLlama Holdings'),
+      React.createElement('p', { className: `text-xs ${c.textMuted} mt-1` }, 'Multi-Wallet Infrastructure • 2 Connected Vaults')
     ),
     React.createElement(
       'div',
-      { className: 'flex flex-wrap gap-2 text-xs' },
+      { className: 'flex flex-wrap items-center gap-3 text-xs' },
+      
+      // Privacy Toggle Button
+      React.createElement(
+        'button',
+        {
+          onClick: () => setIsPrivacy(!isPrivacy),
+          className: `px-3 py-1.5 rounded-lg border text-xs font-medium transition-all ${
+            isPrivacy 
+              ? 'bg-amber-500/10 border-amber-500/30 text-amber-400' 
+              : `${c.card} ${c.textMuted} hover:${c.textMain}`
+          }`
+        },
+        isPrivacy ? '🔒 Privacy On' : '👁️ Privacy Off'
+      ),
+
+      // Theme Toggle Button
+      React.createElement(
+        'button',
+        {
+          onClick: () => setTheme(isDark ? 'light' : 'dark'),
+          className: `px-3 py-1.5 rounded-lg border ${c.card} ${c.textMuted} hover:${c.textMain} transition-all`
+        },
+        isDark ? '☀️ Light' : '🌙 Dark'
+      ),
+
+      // Wallets List
       WALLETS.map((w: any, idx: number) =>
         React.createElement(
           'div',
-          { key: idx, className: 'bg-slate-900 border border-slate-800 px-3 py-1.5 rounded-lg flex items-center gap-2' },
-          React.createElement('span', { className: 'font-mono text-slate-300' }, w.short)
+          { key: idx, className: `${c.card} px-3 py-1.5 rounded-lg flex items-center gap-2` },
+          React.createElement('span', { className: `font-mono ${c.textMuted}` }, w.short)
         )
       )
     )
@@ -52,7 +104,7 @@ export default function Dashboard() {
   // Navigation Tabs
   const nav = React.createElement(
     'nav',
-    { className: 'flex gap-2 border-b border-slate-800 pb-3 overflow-x-auto' },
+    { className: `flex gap-2 border-b ${c.border} pb-3 overflow-x-auto` },
     ['overview', 'cvx', 'aero', 'rsup', 'yb'].map((tab) =>
       React.createElement(
         'button',
@@ -61,8 +113,10 @@ export default function Dashboard() {
           onClick: () => setActiveTab(tab as any),
           className: `px-4 py-2 rounded-md text-xs font-medium uppercase tracking-wider transition-all ${
             activeTab === tab
-              ? 'bg-slate-800 text-emerald-400 border border-slate-700 shadow-sm'
-              : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
+              ? isDark 
+                ? 'bg-slate-800 text-emerald-400 border border-slate-700' 
+                : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+              : `${c.textMuted} hover:${c.textMain}`
           }`
         },
         tab === 'overview' ? 'Consolidated Overview' : tab.toUpperCase()
@@ -70,7 +124,7 @@ export default function Dashboard() {
     )
   );
 
-  // Main Content
+  // Main Content Views
   let content = null;
   if (activeTab === 'overview') {
     content = React.createElement(
@@ -81,24 +135,24 @@ export default function Dashboard() {
         { className: 'grid grid-cols-1 md:grid-cols-3 gap-4' },
         React.createElement(
           'div',
-          { className: 'bg-slate-900 border border-slate-800 p-5 rounded-xl' },
-          React.createElement('span', { className: 'text-slate-400 text-xs' }, 'Total Capital USD'),
-          React.createElement('p', { className: 'text-2xl font-bold text-slate-50 mt-2' }, `$${data.summary.totalCapitalUSD.toLocaleString()}`)
+          { className: `${c.card} p-5 rounded-xl` },
+          React.createElement('span', { className: `${c.textMuted} text-xs` }, 'Total Capital USD'),
+          React.createElement('p', { className: `text-2xl font-bold ${c.textMain} mt-2` }, fmt(data.summary.totalCapitalUSD))
         ),
         React.createElement(
           'div',
-          { className: 'bg-slate-900 border border-slate-800 p-5 rounded-xl' },
-          React.createElement('span', { className: 'text-slate-400 text-xs' }, 'Annualized Cash Flow'),
-          React.createElement('p', { className: 'text-2xl font-bold text-slate-50 mt-2' }, `$${data.summary.annualizedCashFlowUSD.toLocaleString()} / yr`)
+          { className: `${c.card} p-5 rounded-xl` },
+          React.createElement('span', { className: `${c.textMuted} text-xs` }, 'Annualized Cash Flow'),
+          React.createElement('p', { className: `text-2xl font-bold ${c.textMain} mt-2` }, isPrivacy ? '$••••••' : `$${data.summary.annualizedCashFlowUSD.toLocaleString()} / yr`)
         ),
         React.createElement(
           'div',
-          { className: 'bg-slate-900 border border-slate-800 p-5 rounded-xl' },
-          React.createElement('span', { className: 'text-slate-400 text-xs' }, 'Blended Portfolio APR'),
-          React.createElement('p', { className: 'text-2xl font-bold text-emerald-400 mt-2' }, data.summary.blendedAPR)
+          { className: `${c.card} p-5 rounded-xl` },
+          React.createElement('span', { className: `${c.textMuted} text-xs` }, 'Blended Portfolio APR'),
+          React.createElement('p', { className: 'text-2xl font-bold text-emerald-500 mt-2' }, data.summary.blendedAPR)
         )
       ),
-      React.createElement('h2', { className: 'text-sm font-semibold text-slate-300 uppercase tracking-wider' }, 'Asset Breakdown'),
+      React.createElement('h2', { className: `text-sm font-semibold ${c.textMuted} uppercase tracking-wider` }, 'Asset Breakdown'),
       React.createElement(
         'div',
         { className: 'grid grid-cols-1 md:grid-cols-2 gap-4' },
@@ -108,7 +162,7 @@ export default function Dashboard() {
             {
               key: key,
               onClick: () => setActiveTab(key as any),
-              className: 'bg-slate-900 border border-slate-800 p-5 rounded-xl hover:border-slate-700 cursor-pointer transition-all space-y-3'
+              className: `${c.card} p-5 rounded-xl hover:border-emerald-500/50 cursor-pointer transition-all space-y-3`
             },
             React.createElement(
               'div',
@@ -116,16 +170,16 @@ export default function Dashboard() {
               React.createElement(
                 'div',
                 null,
-                React.createElement('h3', { className: 'font-bold text-slate-100' }, `${asset.name} (${asset.symbol})`),
-                React.createElement('p', { className: 'text-xs text-slate-400 mt-0.5' }, asset.revenueSource)
+                React.createElement('h3', { className: `font-bold ${c.textMain}` }, `${asset.name} (${asset.symbol})`),
+                React.createElement('p', { className: `text-xs ${c.textMuted} mt-0.5` }, asset.revenueSource)
               ),
-              React.createElement('span', { className: 'text-xs font-mono bg-slate-800 text-emerald-400 px-2.5 py-1 rounded' }, `${asset.apr} APR`)
+              React.createElement('span', { className: 'text-xs font-mono bg-emerald-500/10 text-emerald-500 px-2.5 py-1 rounded' }, `${asset.apr} APR`)
             ),
             React.createElement(
               'div',
-              { className: 'flex justify-between border-t border-slate-800 pt-3 text-xs' },
-              React.createElement('div', null, React.createElement('span', { className: 'text-slate-400' }, 'Principal Value: '), React.createElement('span', { className: 'font-semibold text-slate-200' }, `$${asset.principalUSD.toLocaleString()}`)),
-              React.createElement('div', null, React.createElement('span', { className: 'text-slate-400' }, 'Monthly Yield: '), React.createElement('span', { className: 'font-semibold text-emerald-400' }, `$${asset.monthlyCashFlowUSD.toLocaleString()}/mo`))
+              { className: `flex justify-between border-t ${c.border} pt-3 text-xs` },
+              React.createElement('div', null, React.createElement('span', { className: c.textMuted }, 'Principal Value: '), React.createElement('span', { className: `font-semibold ${c.textMain}` }, fmt(asset.principalUSD))),
+              React.createElement('div', null, React.createElement('span', { className: c.textMuted }, 'Monthly Yield: '), React.createElement('span', { className: 'font-semibold text-emerald-500' }, isPrivacy ? '$••••••' : `$${asset.monthlyCashFlowUSD.toLocaleString()}/mo`))
             )
           )
         )
@@ -137,71 +191,75 @@ export default function Dashboard() {
       { className: 'space-y-6' },
       React.createElement(
         'div',
-        { className: 'bg-slate-900 border border-slate-800 p-5 rounded-xl flex flex-col md:flex-row md:items-center justify-between gap-4' },
+        { className: `${c.card} p-5 rounded-xl flex flex-col md:flex-row md:items-center justify-between gap-4` },
         React.createElement(
           'div',
           null,
-          React.createElement('h2', { className: 'text-xl font-bold text-slate-50' }, `${selectedAsset.name} (${selectedAsset.symbol})`),
-          React.createElement('p', { className: 'text-xs text-slate-400 mt-1' }, `Revenue Mechanism: ${selectedAsset.revenueSource}`)
+          React.createElement('h2', { className: `text-xl font-bold ${c.textMain}` }, `${selectedAsset.name} (${selectedAsset.symbol})`),
+          React.createElement('p', { className: `text-xs ${c.textMuted} mt-1` }, `Revenue Mechanism: ${selectedAsset.revenueSource}`)
         ),
         React.createElement(
           'div',
           { className: 'flex gap-4 text-xs' },
-          React.createElement('div', { className: 'bg-slate-950 px-3 py-2 rounded-lg border border-slate-800' }, React.createElement('span', { className: 'text-slate-400 block' }, 'Position Value'), React.createElement('span', { className: 'font-bold text-slate-100' }, `$${selectedAsset.principalUSD.toLocaleString()}`)),
-          React.createElement('div', { className: 'bg-slate-950 px-3 py-2 rounded-lg border border-slate-800' }, React.createElement('span', { className: 'text-slate-400 block' }, 'Monthly Yield'), React.createElement('span', { className: 'font-bold text-emerald-400' }, `$${selectedAsset.monthlyCashFlowUSD.toLocaleString()}/mo`)),
-          React.createElement('div', { className: 'bg-slate-950 px-3 py-2 rounded-lg border border-slate-800' }, React.createElement('span', { className: 'text-slate-400 block' }, 'Current APR'), React.createElement('span', { className: 'font-bold text-purple-400' }, selectedAsset.apr))
+          React.createElement('div', { className: `${c.subCard} px-3 py-2 rounded-lg` }, React.createElement('span', { className: `${c.textMuted} block` }, 'Position Value'), React.createElement('span', { className: `font-bold ${c.textMain}` }, fmt(selectedAsset.principalUSD))),
+          React.createElement('div', { className: `${c.subCard} px-3 py-2 rounded-lg` }, React.createElement('span', { className: `${c.textMuted} block` }, 'Monthly Yield'), React.createElement('span', { className: 'font-bold text-emerald-500' }, isPrivacy ? '$••••••' : `$${selectedAsset.monthlyCashFlowUSD.toLocaleString()}/mo`)),
+          React.createElement('div', { className: `${c.subCard} px-3 py-2 rounded-lg` }, React.createElement('span', { className: `${c.textMuted} block` }, 'Current APR'), React.createElement('span', { className: 'font-bold text-purple-500' }, selectedAsset.apr))
         )
       ),
+
+      // Graph 1: Principal Value
       React.createElement(
         'div',
-        { className: 'bg-slate-900 border border-slate-800 p-5 rounded-xl space-y-4' },
+        { className: `${c.card} p-5 rounded-xl space-y-4` },
         React.createElement(
           'div',
           { className: 'flex items-center justify-between' },
-          React.createElement('h3', { className: 'text-xs font-semibold text-slate-300 uppercase tracking-wider' }, '1. Principal Value History (USD)'),
-          React.createElement('span', { className: 'text-xs text-blue-400 font-mono' }, 'Position Value')
+          React.createElement('h3', { className: `text-xs font-semibold ${c.textMuted} uppercase tracking-wider` }, '1. 30-Day Historical Position Value (USD Volatility)'),
+          React.createElement('span', { className: 'text-xs text-blue-500 font-mono' }, 'Live OHLC Feed')
         ),
         React.createElement(
           'div',
-          { className: 'h-60 w-full' },
+          { className: isPrivacy ? 'h-64 w-full filter blur-md select-none transition-all' : 'h-64 w-full transition-all' },
           React.createElement(
             ResponsiveContainer as any,
             { width: '100%', height: '100%' },
             React.createElement(
               AreaChart as any,
               { data: selectedAsset.history },
-              React.createElement(CartesianGrid as any, { strokeDasharray: '3 3', stroke: '#1e293b' }),
-              React.createElement(XAxis as any, { dataKey: 'month', stroke: '#64748b', fontSize: 11 }),
-              React.createElement(YAxis as any, { stroke: '#64748b', fontSize: 11, tickFormatter: (val: any) => `$${(val / 1000).toFixed(0)}k` }),
-              React.createElement(Tooltip as any, { contentStyle: { backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '0.5rem', color: '#f8fafc' }, formatter: (value: any) => [`$${Number(value).toLocaleString()}`, 'Principal Value'] }),
-              React.createElement(Area as any, { type: 'monotone', dataKey: 'principalUSD', stroke: '#3b82f6', fill: '#3b82f6', fillOpacity: 0.2, strokeWidth: 2 })
+              React.createElement(CartesianGrid as any, { strokeDasharray: '3 3', stroke: c.grid }),
+              React.createElement(XAxis as any, { dataKey: 'month', stroke: c.axis, fontSize: 11 }),
+              React.createElement(YAxis as any, { stroke: c.axis, fontSize: 11, domain: ['auto', 'auto'], tickFormatter: (val: any) => isPrivacy ? '•••' : `$${(val / 1000).toFixed(0)}k` }),
+              React.createElement(Tooltip as any, { contentStyle: { backgroundColor: c.tooltipBg, borderColor: c.tooltipBorder, borderRadius: '0.5rem', color: c.tooltipText }, formatter: (value: any) => [isPrivacy ? '$••••••' : `$${Number(value).toLocaleString()}`, 'Position Value'] }),
+              React.createElement(Area as any, { type: 'monotone', dataKey: 'principalUSD', stroke: '#3b82f6', fill: '#3b82f6', fillOpacity: 0.25, strokeWidth: 2 })
             )
           )
         )
       ),
+
+      // Graph 2: Yield
       React.createElement(
         'div',
-        { className: 'bg-slate-900 border border-slate-800 p-5 rounded-xl space-y-4' },
+        { className: `${c.card} p-5 rounded-xl space-y-4` },
         React.createElement(
           'div',
           { className: 'flex items-center justify-between' },
-          React.createElement('h3', { className: 'text-xs font-semibold text-slate-300 uppercase tracking-wider' }, '2. Monthly Revenue / Yield Cash Flow (USD)'),
-          React.createElement('span', { className: 'text-xs text-emerald-400 font-mono' }, 'Bribes & Yields')
+          React.createElement('h3', { className: `text-xs font-semibold ${c.textMuted} uppercase tracking-wider` }, '2. Estimated Daily Yield / Revenue Stream (USD)'),
+          React.createElement('span', { className: 'text-xs text-emerald-500 font-mono' }, 'Bribes & Yields')
         ),
         React.createElement(
           'div',
-          { className: 'h-60 w-full' },
+          { className: isPrivacy ? 'h-64 w-full filter blur-md select-none transition-all' : 'h-64 w-full transition-all' },
           React.createElement(
             ResponsiveContainer as any,
             { width: '100%', height: '100%' },
             React.createElement(
               AreaChart as any,
               { data: selectedAsset.history },
-              React.createElement(CartesianGrid as any, { strokeDasharray: '3 3', stroke: '#1e293b' }),
-              React.createElement(XAxis as any, { dataKey: 'month', stroke: '#64748b', fontSize: 11 }),
-              React.createElement(YAxis as any, { stroke: '#64748b', fontSize: 11, tickFormatter: (val: any) => `$${val}` }),
-              React.createElement(Tooltip as any, { contentStyle: { backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '0.5rem', color: '#f8fafc' }, formatter: (value: any) => [`$${Number(value).toLocaleString()}`, 'Monthly Revenue'] }),
-              React.createElement(Area as any, { type: 'monotone', dataKey: 'revenueUSD', stroke: '#10b981', fill: '#10b981', fillOpacity: 0.2, strokeWidth: 2 })
+              React.createElement(CartesianGrid as any, { strokeDasharray: '3 3', stroke: c.grid }),
+              React.createElement(XAxis as any, { dataKey: 'month', stroke: c.axis, fontSize: 11 }),
+              React.createElement(YAxis as any, { stroke: c.axis, fontSize: 11, domain: ['auto', 'auto'], tickFormatter: (val: any) => isPrivacy ? '•••' : `$${val}` }),
+              React.createElement(Tooltip as any, { contentStyle: { backgroundColor: c.tooltipBg, borderColor: c.tooltipBorder, borderRadius: '0.5rem', color: c.tooltipText }, formatter: (value: any) => [isPrivacy ? '$••••••' : `$${Number(value).toLocaleString()}`, 'Daily Yield'] }),
+              React.createElement(Area as any, { type: 'monotone', dataKey: 'revenueUSD', stroke: '#10b981', fill: '#10b981', fillOpacity: 0.25, strokeWidth: 2 })
             )
           )
         )
@@ -211,7 +269,7 @@ export default function Dashboard() {
 
   return React.createElement(
     'div',
-    { className: 'min-h-screen bg-slate-950 text-slate-100 p-6 font-sans' },
+    { className: `min-h-screen ${c.bg} p-6 font-sans transition-colors duration-200` },
     React.createElement('div', { className: 'max-w-6xl mx-auto space-y-6' }, header, nav, content)
   );
 }
