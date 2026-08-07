@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 // 1. Enter your EVM wallet address to auto-fetch your live Base AERO balance
 const WALLET_ADDRESS = '0xDbc9e41D5E083884f2Cb172bb3a17aB09a528101';
 
-// 2. Exact token quantities (AERO updates dynamically if WALLET_ADDRESS is set)
+// 2. Token quantities (AERO updates dynamically from Base RPC if WALLET_ADDRESS is set)
 const TOKEN_QUANTITIES = {
   cvx: 142000,   // Exact 123k vlCVX position
   aero: 220000,   // Fallback AERO quantity if wallet balance check fails
@@ -11,12 +11,12 @@ const TOKEN_QUANTITIES = {
   yb: 300000      // YB token count
 };
 
-// Real Contract Addresses for Ethereum Mainnet & Base
-const CONTRACTS = {
-  cvx: { network: 'eth', address: '0x4e3fbd56cd56c3e7221478a47e9994d53926f135' },
-  aero: { network: 'base', address: '0x940181a94a35a256b274e232856ab82d5536e0d2' },
-  rsup: { network: 'eth', address: '0x419905009e4656fdc02418c7df35b1e61ed5f726' },
-  yb: { network: 'eth', address: '0x01791f726b4103694969820be083196cc7c045ff' }
+// 3. Exact Liquidity Pool Addresses from GeckoTerminal
+const POOLS = {
+  cvx: { chain: 'ethereum', geckoChain: 'eth', address: '0xb576491f1e6e5e62f1d8f26062ee822b40b0e0d4' },
+  aero: { chain: 'base', geckoChain: 'base', address: '0x6cdcb1c4a4d1c3c6d054b27ac5b77e89eafb971d' },
+  rsup: { chain: 'ethereum', geckoChain: 'eth', address: '0x419905009e4656fdc02418c7df35b1e61ed5f726' },
+  yb: { chain: 'ethereum', geckoChain: 'eth', address: '0x01791f726b4103694969820be083196cc7c045ff' }
 };
 
 // Helper 1: Auto-read live AERO wallet balance directly from Base Blockchain RPC
@@ -33,9 +33,9 @@ async function getBaseAeroBalance(wallet: string, fallbackQty: number) {
         jsonrpc: '2.0',
         id: 1,
         method: 'eth_call',
-        params: [{ to: CONTRACTS.aero.address, data }, 'latest']
+        params: [{ to: '0x940181a94a35a256b274e232856ab82d5536e0d2', data }, 'latest']
       }),
-      next: { revalidate: 30 } // Cache for 30s
+      next: { revalidate: 30 }
     });
 
     const json = await res.json();
@@ -50,54 +50,49 @@ async function getBaseAeroBalance(wallet: string, fallbackQty: number) {
   }
 }
 
-// Helper 2: Dual Live Price Fetcher (DexScreener primary + GeckoTerminal secondary)
-async function getLivePrice(network: string, address: string, fallbackPrice: number) {
-  const addrLower = address.toLowerCase();
+// Helper 2: Fetch spot price directly from specific DEX pool address
+async function getPoolPrice(chain: string, geckoChain: string, poolAddress: string, fallbackPrice: number) {
+  const poolLower = poolAddress.toLowerCase();
 
-  // 1. Try DexScreener API (Fast & Reliable)
+  // Primary: DexScreener Pool API
   try {
-    const res = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${addrLower}`, {
-      next: { revalidate: 30 }
+    const res = await fetch(`https://api.dexscreener.com/latest/dex/pairs/${chain}/${poolLower}`, {
+      next: { revalidate: 15 } // Refresh every 15s
     });
     const json = await res.json();
-    if (json?.pairs && json.pairs.length > 0) {
-      const priceStr = json.pairs[0].priceUsd;
-      if (priceStr) return parseFloat(priceStr);
-    }
-  } catch (e) {
-    console.error(`DexScreener failed for ${addrLower}:`, e);
-  }
-
-  // 2. Try GeckoTerminal API (Secondary)
-  try {
-    const res = await fetch(
-      `https://api.geckoterminal.com/api/v2/simple/networks/${network}/token_price/${addrLower}`,
-      {
-        headers: { 'Accept': 'application/json' },
-        next: { revalidate: 30 }
-      }
-    );
-    const json = await res.json();
-    const priceStr = json?.data?.attributes?.token_prices?.[addrLower];
+    const priceStr = json?.pair?.priceUsd || json?.pairs?.[0]?.priceUsd;
     if (priceStr) return parseFloat(priceStr);
   } catch (e) {
-    console.error(`GeckoTerminal failed for ${addrLower}:`, e);
+    console.error(`DexScreener failed for pool ${poolLower}:`, e);
+  }
+
+  // Secondary: GeckoTerminal Pool API
+  try {
+    const res = await fetch(`https://api.geckoterminal.com/api/v2/networks/${geckoChain}/pools/${poolLower}`, {
+      headers: { 'Accept': 'application/json' },
+      next: { revalidate: 15 }
+    });
+    const json = await res.json();
+    const priceStr = json?.data?.attributes?.base_token_price_usd;
+    if (priceStr) return parseFloat(priceStr);
+  } catch (e) {
+    console.error(`GeckoTerminal failed for pool ${poolLower}:`, e);
   }
 
   return fallbackPrice;
 }
 
 export async function GET() {
-  // Fetch live prices and Base wallet balance concurrently
+  // Fetch prices directly from the specific pools concurrently
   const [cvxPrice, aeroPrice, rsupPrice, ybPrice, liveAeroQty] = await Promise.all([
-    getLivePrice(CONTRACTS.cvx.network, CONTRACTS.cvx.address, 2.42),
-    getLivePrice(CONTRACTS.aero.network, CONTRACTS.aero.address, 0.96),
-    getLivePrice(CONTRACTS.rsup.network, CONTRACTS.rsup.address, 0.10),
-    getLivePrice(CONTRACTS.yb.network, CONTRACTS.yb.address, 0.16),
+    getPoolPrice(POOLS.cvx.chain, POOLS.cvx.geckoChain, POOLS.cvx.address, 2.42),
+    getPoolPrice(POOLS.aero.chain, POOLS.aero.geckoChain, POOLS.aero.address, 0.96),
+    getPoolPrice(POOLS.rsup.chain, POOLS.rsup.geckoChain, POOLS.rsup.address, 0.10),
+    getPoolPrice(POOLS.yb.chain, POOLS.yb.geckoChain, POOLS.yb.address, 0.16),
     getBaseAeroBalance(WALLET_ADDRESS, TOKEN_QUANTITIES.aero)
   ]);
 
-  // Calculations based on live on-chain data
+  // Position value calculations
   const cvxVal = Math.round(TOKEN_QUANTITIES.cvx * cvxPrice);
   const aeroVal = Math.round(liveAeroQty * aeroPrice);
   const rsupVal = Math.round(TOKEN_QUANTITIES.rsup * rsupPrice);
