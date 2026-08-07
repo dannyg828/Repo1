@@ -11,12 +11,12 @@ const TOKEN_QUANTITIES = {
   yb: 300000      // YB token count
 };
 
-// 3. Liquidity Pool Addresses & Yield Parameters
+// 3. Exact GeckoTerminal Liquidity Pool Addresses
 const POOLS = {
   cvx: { chain: 'ethereum', geckoChain: 'eth', address: '0xb576491f1e6e5e62f1d8f26062ee822b40b0e0d4', baseApr: 0.153 },
   aero: { chain: 'base', geckoChain: 'base', address: '0x6cdcb1c4a4d1c3c6d054b27ac5b77e89eafb971d', baseApr: 0.154 },
   rsup: { chain: 'ethereum', geckoChain: 'eth', address: '0x419905009e4656fdc02418c7df35b1e61ed5f726', baseApr: 0.112 },
-  yb: { chain: 'ethereum', geckoChain: 'eth', address: '0x01791f726b4103694969820be083196cc7c045ff', baseApr: 0.097 }
+  yb: { chain: 'ethereum', geckoChain: 'eth', address: '0x6f582cf72ea9084a109be3d04eb58477b869a38e', baseApr: 0.097 }
 };
 
 // Helper 1: Fetch live AERO wallet balance from Base RPC
@@ -90,7 +90,6 @@ async function getVolatileTimeline(
 ) {
   const poolLower = poolAddress.toLowerCase();
   
-  // Try fetching raw OHLC from GeckoTerminal
   try {
     const res = await fetch(
       `https://api.geckoterminal.com/api/v2/networks/${geckoChain}/pools/${poolLower}/ohlcv/day?aggregate=1&limit=300`,
